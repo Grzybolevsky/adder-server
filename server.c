@@ -12,7 +12,7 @@
 const unsigned short MAX_BYTES = 1024;
 const unsigned short PORTNUM = 2019;
 
-void sum_line(char buf[], unsigned int buflen, int newsockfd)
+void sum_line(char* buf, unsigned int buflen, int newsockfd)
 {
         unsigned short i = 0;
         unsigned int sum = 0;
@@ -22,13 +22,18 @@ void sum_line(char buf[], unsigned int buflen, int newsockfd)
         if( buflen > MAX_BYTES)
                 error = true;
 
-        if ( !( buf[0] >= '0' && buf[0] <= '9' )|| !( buf[buflen-3] >= '0' && buf[buflen-3] <= '9' )
-             || buf[buflen-2] != '\r' || buf[buflen-1] != '\n' )
+        if ( !( buf[0] >= '0' && buf[0] <= '9' )|| !( buf[buflen-3] >= '0' && buf[buflen-3] <= '9' ) )
                 error = true;
 
-        while(i < buflen - 2 && error == false)
+        while(i < buflen && error == false)
         {
                 digit = 0;
+
+                if( buf[i] == '\r' && buf[i+1] == '\n' && i+2 < buflen)
+                {
+                        sum_line((buf+i+1), buflen-i-2, newsockfd);
+                        break;
+                }
 
                 if( buf[i] == ' ' )
                 {
@@ -85,9 +90,9 @@ void sum_line(char buf[], unsigned int buflen, int newsockfd)
         else
         {
                 int length = snprintf( NULL, 0, "%d", sum );
-                char* str = malloc( length + 3 );
-                snprintf( str, length + 3, "%d\r\n", sum );
-                if( send( newsockfd, str, length + 3, 0 ) < 0 )
+                char str[length + 3];
+                sprintf( str, "%d\r\n", sum );
+                if( send( newsockfd, str, length + 2, 0 ) < 0 )
                 {
                         perror("send");
                         exit(EXIT_FAILURE);
@@ -130,8 +135,6 @@ int main(int argc, char *argv[])
 
         while( true )
         {
-                int error = 0;
-                socklen_t len = sizeof (error);
                 newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
 
                 if (newsockfd < 0)
@@ -142,24 +145,8 @@ int main(int argc, char *argv[])
 
                 while( true )
                 {
-                        // sprawdzenie czy polaczenie z klientem jest utrzymane.
-                        // zrodlo pomyslu: https://stackoverflow.com/questions/4142012/how-to-find-the-socket-connection-state-in-c
-                        int retval = getsockopt (newsockfd, SOL_SOCKET, SO_ERROR, &error, &len);
-
-                        if (retval != 0)
-                        {
-                                fprintf(stderr, "error getting socket \n error code: %s\n", strerror(retval));
-                                break;
-                        }
-
-                        if (error != 0)
-                        {
-                                fprintf(stderr, "socket error: %s\n", strerror(error));
-                        }
-
                         memset(buf, 0x00, MAX_BYTES * sizeof(char));
 
-                        // odebranie danych, zapisanie ich do bufora i przeslanie bufora do funkcji sumujacej
                         int buflen = read(newsockfd, buf, MAX_BYTES );
 
                         if( buflen == 0 )
