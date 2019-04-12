@@ -4,7 +4,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <limits.h>
-#include <errno.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
@@ -14,88 +13,72 @@ const unsigned short PORTNUM = 2019;
 
 void sum_line(char* buf, unsigned int buflen, int newsockfd)
 {
-        unsigned short i = 0;
-        unsigned int sum = 0;
-        unsigned int digit;
-        bool error = false;
+        unsigned i = 0, sum = 0, digit;
+        bool succesful = true;
 
-        if( buflen > MAX_BYTES)
-                error = true;
+        if(buflen > MAX_BYTES || !( buf[i] >= '0' && buf[i] <= '9' ) ) succesful = false;
 
-        if ( !( buf[0] >= '0' && buf[0] <= '9' )|| !( buf[buflen-3] >= '0' && buf[buflen-3] <= '9' ) )
-                error = true;
-
-        while(i < buflen && error == false)
+        while( i < buflen )
         {
                 digit = 0;
 
-                if( buf[i] == '\r' && buf[i+1] == '\n' && i+2 < buflen)
+                while( buf[i] >= '0' && buf[i] <= '9'  )
                 {
-                        sum_line((buf+i+1), buflen-i-2, newsockfd);
-                        break;
-                }
-
-                if( buf[i] == ' ' )
-                {
-                        error = true;
-                        break;
-                }
-
-                while( i < buflen - 2 && buf[i] != ' ' )
-                {
-                        if( buf[i] < '0' || buf[i] > '9' )
-                        {
-                                error = true;
-                                break;
-                        }
-
-                        if( digit > INT_MAX/10 + INT_MAX%10 )
-                        {
-                                error = true;
-                                break;
-                        }
+                        if(i > MAX_BYTES || digit > INT_MAX/10 + INT_MAX%10 ) succesful = false;
 
                         digit *= 10;
 
-                        if( digit > INT_MAX  - (buf[i] - '0') )
-                        {
-                                error = true;
-                                break;
-                        }
+                        if( digit > INT_MAX  - (buf[i] - '0') ) succesful = false;
 
                         digit += (buf[i] - '0');
 
                         i++;
-
                 }
 
-                if( sum > INT_MAX - digit )
-                {
-                        error = true;
-                        break;
-                }
+                if( sum > INT_MAX - digit ) succesful = false;
 
                 sum += digit;
-                i++;
-        }
 
-        if(error)
-        {
-                if( send( newsockfd, "ERROR\r\n", 7, 0 ) < 0 )
+                if(buf[i] == '\r' && buf[i+1] == '\n' )
                 {
-                        perror("send");
-                        exit(EXIT_FAILURE);
+                        if(succesful)
+                        {
+                                int length = snprintf( NULL, 0, "%d", sum );
+                                char str[length + 2];
+                                sprintf( str, "%d\r\n", sum );
+                                if( send( newsockfd, str, length + 2, 0 ) < 0 )
+                                {
+                                        perror("send");
+                                        exit(EXIT_FAILURE);
+                                }
+                        }
+                        else
+                        {
+                                if( send( newsockfd, "ERROR\r\n", 7, 0 ) < 0 )
+                                {
+                                        perror("send");
+                                        exit(EXIT_FAILURE);
+                                }
+                        }
+                        if(i + 2 < buflen)
+                                sum_line( (buf+i+2), buflen-(i+2), newsockfd );
+                        return;
                 }
-        }
-        else
-        {
-                int length = snprintf( NULL, 0, "%d", sum );
-                char str[length + 3];
-                sprintf( str, "%d\r\n", sum );
-                if( send( newsockfd, str, length + 2, 0 ) < 0 )
+                else if(buf[i] == ' ')
                 {
-                        perror("send");
-                        exit(EXIT_FAILURE);
+                        i++;
+                        if( buf[i] < '0' || buf[i] > '9') succesful = false;
+                }
+                else
+                {
+                        if( send( newsockfd, "ERROR\r\n", 7, 0 ) < 0 )
+                        {
+                                perror("send");
+                                exit(EXIT_FAILURE);
+                        }
+                        while(buf[i] != '\r' && (buf[i+1] != '\n' && i + 2 < buflen) ) i++;
+                        if(i + 2 < buflen) sum_line( (buf+i+2), buflen-(i+2), newsockfd );
+                        return;
                 }
         }
 }
