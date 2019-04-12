@@ -38,8 +38,7 @@ void sum_line(char* buf, unsigned int buflen, int newsockfd)
                 if( sum > INT_MAX - digit ) succesful = false;
 
                 sum += digit;
-
-                if(buf[i] == '\r' && buf[i+1] == '\n' )
+                if(buf[i] == '\r' && buf[i + 1] == '\n' )
                 {
                         if(succesful)
                         {
@@ -86,7 +85,7 @@ void sum_line(char* buf, unsigned int buflen, int newsockfd)
 int main(int argc, char *argv[])
 {
         int sockfd, newsockfd;
-        char buf[MAX_BYTES + 1];
+        char buf[MAX_BYTES];
         unsigned int clilen;
         struct sockaddr_in serv_addr, cli_addr;
 
@@ -131,9 +130,7 @@ int main(int argc, char *argv[])
                         memset(buf, 0x00, MAX_BYTES * sizeof(char));
 
                         int buflen = read(newsockfd, buf, MAX_BYTES );
-
-                        if( buflen == 0 )
-                                break;
+                        if( buflen == 0 ) break;
 
                         if( buflen < 0 )
                         {
